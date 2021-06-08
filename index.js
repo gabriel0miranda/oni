@@ -57,8 +57,8 @@ async function init() {
                     .strictOptions()
             })
                 .command('push', 'Push image to repository', function (yargs, helpOrVersionSetgs) {
-                    return yargs.option('image', {
-                        alias: 'tag',
+                    return yargs.option('tag', {
+                        alias: 't',
                         type: 'string',
                         required: true,
                         description: 'Image tag',

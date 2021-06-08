@@ -13,7 +13,7 @@ async function DockerBuild(tag, dockerFile = './Dockerfile', app = 'APP_DEFAULT'
 
     try {
         console.log(`Building image ${APP_IMAGE}:${tag}`)
-        let output = await docker.buildImage({ context: __dirname, src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}` });
+        let output = await docker.buildImage({ context: process.cwd(), src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}` });
         result = await new Promise((resolve, reject) => {
             docker.modem.followProgress(output, (err, res) => {
                 if (err) {
@@ -33,7 +33,7 @@ async function DockerBuild(tag, dockerFile = './Dockerfile', app = 'APP_DEFAULT'
 
 }
 
-async function DockerPush(app, tag) {
+async function DockerPush(tag, app) {
     const env = yenv('oni.yaml', process.env.NODE_ENV)
     const APP = env[app];
     const APP_IMAGE = APP.APP_IMAGE;

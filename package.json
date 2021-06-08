@@ -17,7 +17,7 @@
   "bin": "index.js",
   "pkg": {
     "scripts": "*.js",
-    "assets": ["node_modules/terminal-kit/**/*","style.css"],
+    "assets": ["/**/**/Dockerfile"],
     "targets": [ "node14-linux-x64" ],
     "outputPath": "dist"
   }  
