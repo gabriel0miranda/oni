@@ -112,7 +112,7 @@ async function init() {
                     break;
             }
         } else {
-            console.error('Erro file oni.yaml not exist.')
+            console.error('\x1b[31m','Erro file oni.yaml not exist.')
             process.exit(1);
         }
 

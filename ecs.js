@@ -123,7 +123,7 @@ async function DeployECS(app, tag, loadbalance) {
             },
         }
 
-        console.log(containerDefinition);
+        console.log('ContainerDefinition: ',containerDefinition);
 
 
         const ecs = new aws.ECS();
@@ -136,15 +136,15 @@ async function DeployECS(app, tag, loadbalance) {
         }).promise();
 
         const taskARN = task.taskDefinition.taskDefinitionArn;
-        console.log('Task Defnition: ', taskARN);
+        console.log('\x1b[36mTask Defnition: ', taskARN);
 
         if (loadbalance) {
-            await UpdateService(taskARN, app)
+            await UpdateService(taskARN, app,cred)
         } else {
-            await CodeDeploy(taskARN, app, TMP_PORTS[0])
+            await CodeDeploy(taskARN, app, TMP_PORTS[0],cred)
         }
     } catch (error) {
-        console.error(error);
+        console.error('\x1b[31m',error);
         process.exit(1);
     }
 
@@ -153,43 +153,43 @@ async function DeployECS(app, tag, loadbalance) {
 }
 
 
-async function UpdateService(taskARN, app = 'APP_DEFAULT') {
+async function UpdateService(taskARN, app = 'APP_DEFAULT',credencias) {
 
     try {
-        await initEnvs(app);
-        const cred = await AssumeRole(AUTH_TYPE);
+        //await initEnvs(app);
+        //const cred = await AssumeRole(AUTH_TYPE);
 
         aws.config.update(
             {
                 apiVersion: '2016-11-15',
-                accessKeyId: cred.accessKeyId,
-                secretAccessKey: cred.secretAccessKey,
-                sessionToken: cred.sessionToken,
+                accessKeyId: credencias.accessKeyId,
+                secretAccessKey: credencias.secretAccessKey,
+                sessionToken: credencias.sessionToken,
                 region: APP_REGION
             })
 
         const ecs = new aws.ECS();
 
-        console.log(`Init deploy app ${APP_NAME} without loadbalance`)
+        console.log('\x1b[36m',`Init deploy app ${APP_NAME} without loadbalance`);
         const service = await ecs.updateService({ service: APP_NAME, cluster: CLUSTER_NAME, taskDefinition: taskARN }).promise();
         if (service.service.status === 'ACTIVE') {
-            console.log('Finished deploy')
+            console.log('\x1b[32m','Finished deploy')
         } else {
-            console.erro('Erro deploy', service);
+            console.erro('\x1b[31mErro deploy', service);
             process.exit(1);
         }
     } catch (error) {
-        console.error(error);
+        console.error('\x1b[31m',error);
         process.exit(1);
     }
 
 }
 
 
-async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080) {
+async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, credencias) {
 
     try {
-        await initEnvs(appName);
+        //await initEnvs(appName);
 
         let contentDefinition = {
             version: 1,
@@ -217,23 +217,23 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080) {
         }
 
 
-        const cred = await AssumeRole(AUTH_TYPE);
+        //const cred = await AssumeRole(AUTH_TYPE);
 
 
 
         aws.config.update(
             {
                 apiVersion: '2016-11-15',
-                accessKeyId: cred.accessKeyId,
-                secretAccessKey: cred.secretAccessKey,
-                sessionToken: cred.sessionToken,
+                accessKeyId: credencias.accessKeyId,
+                secretAccessKey: credencias.secretAccessKey,
+                sessionToken: credencias.sessionToken,
                 region: APP_REGION
             })
 
         const codeDeploy = new aws.CodeDeploy();
 
-        console.log(`Init deploy app ${APP_NAME} `)
-        console.log(contentDefinition);
+        console.log('\x1b[36m',`Init deploy app ${APP_NAME} `)
+        console.log('AppSecp: ',JSON.stringify(contentDefinition));
 
         const deploy = await codeDeploy.createDeployment({
             applicationName: `${CLUSTER_NAME}-${APP_NAME}`,
@@ -247,29 +247,74 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080) {
 
         }).promise();
 
-        console.log('DeploymentId ', deploy.deploymentId);
+        console.log('\x1b[32m ', 'Deployment created!');
+        console.log('\x1b[36m',`For more info: https://${APP_REGION}.console.aws.amazon.com/codesuite/codedeploy/deployments/${deploy.deploymentId}`);
 
 
         let statusDeploy;
         statusDeploy = await codeDeploy.getDeployment({ deploymentId: deploy.deploymentId }).promise();
         while (statusDeploy.deploymentInfo.status === 'InProgress' || statusDeploy.deploymentInfo.status === 'Created') {
-            await sleep(5000);
+            await sleep(15000);
+            await PrintEventsECS(credencias);
             statusDeploy = await codeDeploy.getDeployment({ deploymentId: deploy.deploymentId }).promise();
         }
         if (statusDeploy.deploymentInfo.status === 'Succeeded') {
-            console.log('Finished deploy');
+            console.log('\x1b[32m','Finished deploy');
         } else {
-            console.error('Erro: ', { Message: 'Deployment Failed', Status: statusDeploy.deploymentInfo.status });
+            console.error('\x1b[31mErro: ', { Message: 'Deployment Failed', Status: statusDeploy.deploymentInfo.status });
             console.error(statusDeploy.deploymentInfo)
             process.exit(1);
         }
     } catch (error) {
-        console.error(error);
+        console.error('\x1b[31m',error);
         process.exit(1);
     }
 
 
 
+}
+
+
+function GetSortOrder(prop) {    
+    return function(a, b) {    
+        if (new Date(a[prop]) > new Date(b[prop])) {    
+            return 1;    
+        } else if (new Date(a[prop]) < new Date(b[prop])) {    
+            return -1;    
+        }    
+        return 0;    
+    }    
+}
+
+async function PrintEventsECS(credencias) {
+    try {
+
+        aws.config.update(
+            {
+                apiVersion: '2016-11-15',
+                accessKeyId: credencias.accessKeyId,
+                secretAccessKey: credencias.secretAccessKey,
+                sessionToken: credencias.sessionToken,
+                region: APP_REGION
+            });
+
+            const ecs = new aws.ECS();
+
+            const service = await ecs.describeServices({cluster: CLUSTER_NAME, services: [APP_NAME]}).promise();
+            let events = service.$response.data.services[0].events;
+            events.sort(GetSortOrder('createdAt'));
+            const eventsSize = events.length - 1;
+            if (eventsSize <= 0 ) {
+                 console.log('\x1b[35m',events[0])
+             } {
+                 console.log('\x1b[35m',events[eventsSize])
+             }
+
+
+    } catch (error) {
+        console.error('\x1b[31m',error);
+        process.exit(1);
+    }
 }
 
 module.exports = {
