@@ -40,6 +40,7 @@ async function initEnvs(app) {
     CLUSTER_NAME = APP.CLUSTER_NAME;
     TMP_MOUNTPOINTS = APP.APP_MOUNTPOINTS;
     TMP_EFS_CONFIG = APP.EFS_CONFIG;
+    TMP_CONSTRAINTS = APP.CONSTRAINTS;
     AUTH_TYPE = 'INFRA';
 }
 
@@ -49,7 +50,7 @@ async function DeployECS(app, tag, loadbalance) {
     try {
         await initEnvs(app);
 
-        const cred = await AssumeRole(AUTH_TYPE);
+        const cred = await AssumeRole(AUTH_TYPE,app);
 
         aws.config.update(
             {
@@ -65,6 +66,7 @@ async function DeployECS(app, tag, loadbalance) {
         let APP_PORTS = [];
         let APP_MOUNTPOINTS = [];
         let APP_VOLUMES = [];
+        let APP_CONSTRAINTS = [];
 
 
         for (var idx in TPM_VARIABLES) {
@@ -83,7 +85,6 @@ async function DeployECS(app, tag, loadbalance) {
             }
         }
 
-
         if (TMP_PORTS)
             for (const port of TMP_PORTS) {
                 APP_PORTS.push({ containerPort: port })
@@ -100,6 +101,10 @@ async function DeployECS(app, tag, loadbalance) {
                 APP_VOLUMES.push({ efsVolumeConfiguration: { fileSystemId: EFS.FILESYSTEM_ID, rootDirectory: EFS.ROOTDIRECTORY } });
             }
 
+        if (TMP_CONSTRAINTS)
+            for (const CONST of TMP_CONSTRAINTS) {
+                APP_CONSTRAINTS.push({expression: CONST[0], type: CONST[1]});
+            }
 
 
         let containerDefinition = {
@@ -132,6 +137,7 @@ async function DeployECS(app, tag, loadbalance) {
             containerDefinitions: [containerDefinition],
             family: `${CLUSTER_NAME}-${APP_NAME}`,
             executionRoleArn: `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}`,
+            placementConstraints: APP_CONSTRAINTS,
             volumes: APP_VOLUMES
         }).promise();
 

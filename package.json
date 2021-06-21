@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.922.0",
+    "cli-docs-generator": "^1.0.7",
     "dockerode": "^3.3.0",
     "yargs": "^17.0.1",
     "yenv": "^3.0.0"
@@ -17,8 +18,12 @@
   "bin": "index.js",
   "pkg": {
     "scripts": "*.js",
-    "assets": ["/**/**/Dockerfile"],
-    "targets": [ "node14-linux-x64" ],
+    "assets": [
+      "/**/**/Dockerfile"
+    ],
+    "targets": [
+      "node14-linux-x64"
+    ],
     "outputPath": "dist"
-  }  
+  }
 }
