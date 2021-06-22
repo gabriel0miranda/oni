@@ -67,6 +67,7 @@ async function DeployECS(app, tag, loadbalance) {
         let APP_MOUNTPOINTS = [];
         let APP_VOLUMES = [];
         let APP_CONSTRAINTS = [];
+        let APP_CMDS = [];
 
 
         for (var idx in TPM_VARIABLES) {
@@ -105,6 +106,12 @@ async function DeployECS(app, tag, loadbalance) {
             for (const CONST of TMP_CONSTRAINTS) {
                 APP_CONSTRAINTS.push({expression: CONST[0], type: CONST[1]});
             }
+        
+        if (APP_COMMAND)
+            for (const cmd of APP_COMMAND) {
+                APP_CMDS.push(cmd.toString());
+            }
+            
 
 
         let containerDefinition = {
@@ -113,7 +120,7 @@ async function DeployECS(app, tag, loadbalance) {
             memoryReservation: APP_MEMORY_RESERVATION,
             memory: APP_MEMORY,
             name: APP_NAME,
-            command: APP_COMMAND,
+            command: APP_CMDS,
             environment: APP_VARIABLES,
             secrets: APP_SECRETS,
             portMappings: APP_PORTS,
