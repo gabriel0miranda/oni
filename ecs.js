@@ -74,7 +74,7 @@ async function DeployECS(app, tag, loadbalance) {
             var item = TPM_VARIABLES[idx];
             for (var key in item) {
                 var value = item[key];
-                APP_VARIABLES.push({ name: key, value: value })
+                APP_VARIABLES.push({ name: key, value: value.toString() })
             }
         }
 
