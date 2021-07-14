@@ -41,6 +41,7 @@ async function initEnvs(app) {
     TMP_MOUNTPOINTS = APP.APP_MOUNTPOINTS;
     TMP_EFS_CONFIG = APP.EFS_CONFIG;
     TMP_CONSTRAINTS = APP.CONSTRAINTS;
+    TASK_ARN = APP.TASK_ARN;
     AUTH_TYPE = 'INFRA';
 }
 
@@ -145,7 +146,8 @@ async function DeployECS(app, tag, loadbalance) {
             family: `${CLUSTER_NAME}-${APP_NAME}`,
             executionRoleArn: `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}`,
             placementConstraints: APP_CONSTRAINTS,
-            volumes: APP_VOLUMES
+            volumes: APP_VOLUMES,
+            taskRoleArn: TASK_ARN ? `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}` : ''
         }).promise();
 
         const taskARN = task.taskDefinition.taskDefinitionArn;
