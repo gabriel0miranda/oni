@@ -1,1 +1,0 @@
-console.dir("{name:'xxxx'}",{depth: null});
