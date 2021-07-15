@@ -100,7 +100,7 @@ async function DeployECS(app, tag, loadbalance) {
 
         if (TMP_EFS_CONFIG)
             for (const EFS of TMP_EFS_CONFIG) {
-                APP_VOLUMES.push({ efsVolumeConfiguration: { fileSystemId: EFS.FILESYSTEM_ID, rootDirectory: EFS.ROOTDIRECTORY } });
+                APP_VOLUMES.push({ name: EFS.VOLUME_NAME, efsVolumeConfiguration: {transitEncryption: 'ENABLED', fileSystemId: EFS.FILESYSTEM_ID,  authorizationConfig: {accessPointId: EFS.ACCESS_POINT_ID } } });
             }
 
         if (TMP_CONSTRAINTS)

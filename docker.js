@@ -13,18 +13,37 @@ async function DockerBuild(tag, dockerFile = './Dockerfile', app = 'APP_DEFAULT'
         const APP_IMAGE = APP.APP_IMAGE;
         
         console.log('\x1b[36m',`Building image ${APP_IMAGE}:${tag}`)
+
         let output = await docker.buildImage({ context: process.cwd(), src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}` });
-        result = await new Promise((resolve, reject) => {
+         await new Promise((resolve, reject) => {
             docker.modem.followProgress(output, (err, res) => {
-                if (err) {
+                if (err) {                    
                     reject(err);
                 } else {
-                    console.log(res);
+                    for (const r of res) {
+                        if(r.stream) {
+                            console.log(r.stream)
+                        } else {
+                            if (r.errorDetail) {
+                                console.log('\x1b[31m',r.errorDetail.message);
+                                process.exit(1);
+                            }
+ 
+                        }
+                    }
                     resolve(res);
                 }
             });
         });
-        console.log('\x1b[32m',`Finished building`);
+
+        //  docker.buildImage({ context: process.cwd(), src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}` }, function (err, stream) {
+        //     if(err) {
+        //         console.log('\x1b[31m',err);
+        //     }
+        //     stream.pipe(process.stdout);
+
+        //   });
+
     } catch (error) {
         console.error('\x1b[31m',error);
         process.exit(1);
@@ -51,7 +70,6 @@ async function DockerPush(tag, app) {
                 if (err) {
                     reject(err);
                 } else {
-                    console.log(res);
                     resolve(res);
                 }
             });
