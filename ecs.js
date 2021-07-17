@@ -17,6 +17,8 @@ let CLUSTER_NAME;
 let TMP_MOUNTPOINTS;
 let TMP_EFS_CONFIG;
 let AUTH_TYPE;
+let lastTask = '';
+let lastIdMessage = '';
 
 async function sleep(ms) {
     return new Promise((resolve) => {
@@ -45,13 +47,39 @@ async function initEnvs(app) {
     AUTH_TYPE = 'INFRA';
 }
 
+
+async function GetLogFailedContainerDeploy(credencias, task) {
+
+    aws.config.update(
+        {
+            apiVersion: '2016-11-15',
+            accessKeyId: credencias.accessKeyId,
+            secretAccessKey: credencias.secretAccessKey,
+            sessionToken: credencias.sessionToken,
+            region: APP_REGION
+        })
+
+    const cloudwatch = new aws.CloudWatchLogs();
+    const logs = await cloudwatch.getLogEvents({
+        logGroupName: `/ecs/${CLUSTER_NAME}/${APP_NAME}`,
+        logStreamName: `${APP_NAME}/${APP_NAME}/${task}`,
+        startFromHead: true,
+        limit: 1000
+    }).promise();
+
+    console.log('Log fom stopped container');
+    for (const log of logs.$response.data.events) {
+        console.log(log.message);
+    }
+}
+
 async function DeployECS(app, tag, loadbalance) {
 
 
     try {
         await initEnvs(app);
 
-        const cred = await AssumeRole(AUTH_TYPE,app);
+        const cred = await AssumeRole(AUTH_TYPE, app);
 
         aws.config.update(
             {
@@ -100,19 +128,19 @@ async function DeployECS(app, tag, loadbalance) {
 
         if (TMP_EFS_CONFIG)
             for (const EFS of TMP_EFS_CONFIG) {
-                APP_VOLUMES.push({ name: EFS.VOLUME_NAME, efsVolumeConfiguration: {transitEncryption: 'ENABLED', fileSystemId: EFS.FILESYSTEM_ID,  authorizationConfig: {accessPointId: EFS.ACCESS_POINT_ID } } });
+                APP_VOLUMES.push({ name: EFS.VOLUME_NAME, efsVolumeConfiguration: { transitEncryption: 'ENABLED', fileSystemId: EFS.FILESYSTEM_ID, authorizationConfig: { accessPointId: EFS.ACCESS_POINT_ID } } });
             }
 
         if (TMP_CONSTRAINTS)
             for (const CONST of TMP_CONSTRAINTS) {
-                APP_CONSTRAINTS.push({expression: CONST[0], type: CONST[1]});
+                APP_CONSTRAINTS.push({ expression: CONST[0], type: CONST[1] });
             }
-        
+
         if (APP_COMMAND)
             for (const cmd of APP_COMMAND) {
                 APP_CMDS.push(cmd.toString());
             }
-            
+
 
 
         let containerDefinition = {
@@ -136,7 +164,7 @@ async function DeployECS(app, tag, loadbalance) {
             },
         }
 
-        console.log('ContainerDefinition: ',containerDefinition);
+        console.log('ContainerDefinition: ', containerDefinition);
 
 
         const ecs = new aws.ECS();
@@ -154,12 +182,12 @@ async function DeployECS(app, tag, loadbalance) {
         console.log('\x1b[36mTask Defnition: ', taskARN);
 
         if (loadbalance) {
-            await UpdateService(taskARN, app,cred)
+            await UpdateService(taskARN, app, cred)
         } else {
-            await CodeDeploy(taskARN, app, TMP_PORTS[0],cred)
+            await CodeDeploy(taskARN, app, TMP_PORTS[0], cred)
         }
     } catch (error) {
-        console.error('\x1b[31m',error);
+        console.error('\x1b[31m', error);
         process.exit(1);
     }
 
@@ -168,7 +196,7 @@ async function DeployECS(app, tag, loadbalance) {
 }
 
 
-async function UpdateService(taskARN, app = 'APP_DEFAULT',credencias) {
+async function UpdateService(taskARN, app = 'APP_DEFAULT', credencias) {
 
     try {
         //await initEnvs(app);
@@ -185,21 +213,55 @@ async function UpdateService(taskARN, app = 'APP_DEFAULT',credencias) {
 
         const ecs = new aws.ECS();
 
-        console.log('\x1b[36m',`Init deploy app ${APP_NAME} without loadbalance`);
+        console.log('\x1b[36m', `Init deploy app ${APP_NAME} without loadbalance`);
         const service = await ecs.updateService({ service: APP_NAME, cluster: CLUSTER_NAME, taskDefinition: taskARN }).promise();
         if (service.service.status === 'ACTIVE') {
-            console.log('\x1b[32m','Finished deploy')
+            console.log('\x1b[32m', 'Finished deploy')
         } else {
             console.erro('\x1b[31mErro deploy', service);
             process.exit(1);
         }
     } catch (error) {
-        console.error('\x1b[31m',error);
+        console.error('\x1b[31m', error);
         process.exit(1);
     }
 
 }
 
+async function stopDeployment(deploymentId, credencias) {
+    aws.config.update(
+        {
+            apiVersion: '2016-11-15',
+            accessKeyId: credencias.accessKeyId,
+            secretAccessKey: credencias.secretAccessKey,
+            sessionToken: credencias.sessionToken,
+            region: APP_REGION
+        })
+
+    try {
+        const codeDeploy = new aws.CodeDeploy();
+        console.log('\x1b[31m', 'Stopping Deployment by Timeout')
+        await codeDeploy.stopDeployment({ deploymentId: deploymentId, autoRollbackEnabled: true }).promise();
+        console.error('\x1b[31m', 'Deployment Stopped');
+
+
+        const ecs = new aws.ECS();
+        await sleep(10000);
+        const taskDetails = await ecs.describeTasks({ cluster: CLUSTER_NAME, tasks: [`arn:aws:ecs:${APP_REGION}:${APP_ACCOUNT}:task/${CLUSTER_NAME}/${lastTask}`] }).promise();
+        console.log('Stopped Reason: ', taskDetails.$response.data.tasks[0].containers[0].reason)
+        
+        await GetLogFailedContainerDeploy(lastTask);
+
+        process.exit(1);
+
+        
+
+    } catch (error) {
+        console.error('\x1b[31m', error);
+        process.exit(1);
+    }
+
+}
 
 async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, credencias) {
 
@@ -220,11 +282,11 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
                                 ContainerPort: appPort
                             }
                             ,
-                            CapacityProviderStrategy: [{
-                                CapacityProvider: `${CLUSTER_NAME}-capacity-provider`,
-                                Base: 0,
-                                Weight: 1
-                            }]
+                            // CapacityProviderStrategy: [{
+                            //     CapacityProvider: `${CLUSTER_NAME}-capacity-provider`,
+                            //     Base: 0,
+                            //     Weight: 1
+                            // }]
                         }
                     }
                 }
@@ -247,8 +309,8 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
 
         const codeDeploy = new aws.CodeDeploy();
 
-        console.log('\x1b[36m',`Init deploy app ${APP_NAME} `)
-        console.log('AppSecp: ',JSON.stringify(contentDefinition));
+        console.log('\x1b[36m', `Init deploy app ${APP_NAME} `)
+        console.log('AppSecp: ', JSON.stringify(contentDefinition));
 
         const deploy = await codeDeploy.createDeployment({
             applicationName: `${CLUSTER_NAME}-${APP_NAME}`,
@@ -259,29 +321,41 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
                 revisionType: 'AppSpecContent',
                 appSpecContent: { content: JSON.stringify(contentDefinition) }
             },
+            autoRollbackConfiguration: {
+                enabled: true,
+                events: ['DEPLOYMENT_FAILURE']
+            }
 
         }).promise();
 
         console.log('\x1b[32m ', 'Deployment created!');
-        console.log('\x1b[36m',`For more info: https://${APP_REGION}.console.aws.amazon.com/codesuite/codedeploy/deployments/${deploy.deploymentId}`);
+        console.log('\x1b[36m', `For more info: https://${APP_REGION}.console.aws.amazon.com/codesuite/codedeploy/deployments/${deploy.deploymentId}`);
 
 
         let statusDeploy;
+        let timeOut = 0;
         statusDeploy = await codeDeploy.getDeployment({ deploymentId: deploy.deploymentId }).promise();
         while (statusDeploy.deploymentInfo.status === 'InProgress' || statusDeploy.deploymentInfo.status === 'Created') {
-            await sleep(15000);
+            await sleep(5000);
+            timeOut = timeOut + 5;
             await PrintEventsECS(credencias);
             statusDeploy = await codeDeploy.getDeployment({ deploymentId: deploy.deploymentId }).promise();
+
+            if (timeOut > 100 && (statusDeploy.deploymentInfo.status === 'InProgress' || statusDeploy.deploymentInfo.status === 'Created'))
+                await stopDeployment(deploy.deploymentId, credencias)
+
+
         }
         if (statusDeploy.deploymentInfo.status === 'Succeeded') {
-            console.log('\x1b[32m','Finished deploy');
+            console.log('\x1b[32m', 'Finished deploy');
         } else {
             console.error('\x1b[31mErro: ', { Message: 'Deployment Failed', Status: statusDeploy.deploymentInfo.status });
             console.error(statusDeploy.deploymentInfo)
             process.exit(1);
         }
+        //await GetFailedDeployMsg(credencias);
     } catch (error) {
-        console.error('\x1b[31m',error);
+        console.error('\x1b[31m', error);
         process.exit(1);
     }
 
@@ -290,15 +364,15 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
 }
 
 
-function GetSortOrder(prop) {    
-    return function(a, b) {    
-        if (new Date(a[prop]) > new Date(b[prop])) {    
-            return 1;    
-        } else if (new Date(a[prop]) < new Date(b[prop])) {    
-            return -1;    
-        }    
-        return 0;    
-    }    
+function GetSortOrder(prop) {
+    return function (a, b) {
+        if (new Date(a[prop]) > new Date(b[prop])) {
+            return 1;
+        } else if (new Date(a[prop]) < new Date(b[prop])) {
+            return -1;
+        }
+        return 0;
+    }
 }
 
 async function PrintEventsECS(credencias) {
@@ -313,21 +387,38 @@ async function PrintEventsECS(credencias) {
                 region: APP_REGION
             });
 
-            const ecs = new aws.ECS();
+        const ecs = new aws.ECS();
 
-            const service = await ecs.describeServices({cluster: CLUSTER_NAME, services: [APP_NAME]}).promise();
-            let events = service.$response.data.services[0].events;
-            events.sort(GetSortOrder('createdAt'));
-            const eventsSize = events.length - 1;
-            if (eventsSize <= 0 ) {
-                 console.log('\x1b[35m',events[0])
-             } {
-                 console.log('\x1b[35m',events[eventsSize])
-             }
+        const service = await ecs.describeServices({ cluster: CLUSTER_NAME, services: [APP_NAME] }).promise();
+        let events = service.$response.data.services[0].events;
+        events.sort(GetSortOrder('createdAt'));
+        const eventsSize = events.length - 1;
+        if (eventsSize <= 0) {
+
+
+            if (lastIdMessage != events[0].id)
+                console.log('\x1b[35m', `${events[0].createdAt} => ${events[0].message}`)
+
+
+            if (events[0].message.includes('has started 1 tasks: (task'))
+                lastTask = events[0].message.split('(')[2].replace('task ', '').replace(').', '');
+
+            lastIdMessage = events[0].id;
+        } {
+
+
+            if (lastIdMessage != events[eventsSize].id)
+                console.log('\x1b[35m', `${events[eventsSize].createdAt} => ${events[eventsSize].message}`)
+
+            if (events[eventsSize].message.includes('has started 1 tasks: (task'))
+                lastTask = events[eventsSize].message.split('(')[2].replace('task ', '').replace(').', '');
+
+            lastIdMessage = events[eventsSize].id;
+        }
 
 
     } catch (error) {
-        console.error('\x1b[31m',error);
+        console.error('\x1b[31m', error);
         process.exit(1);
     }
 }
