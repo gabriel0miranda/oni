@@ -3,7 +3,8 @@
 ## Install
 
 ```sh
-$ npm i 
+$ npm install
+$ npm install -g pkg
 $ pkg .
 ```
 
