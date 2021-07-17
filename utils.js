@@ -23,14 +23,23 @@ development:
        - ls 
        - -l
      APP_MOUNTPOINTS:
-       - /dev/null:/dev/xxx
+       - volume_xyz:/dev/xxx
      EFS_CONFIG:
-       -  FILESYSTEM_ID: xxsxs-x-x-x-sx-sx-s-xsx-s
-          ROOTDIRECTORY: /mount/mnt
+       -  FILESYSTEM_ID: efsid-xxxxxxxxxx
+          ACCESS_POINT_ID: fsid-xxxxxxxxx
+          VOLUME_NAME: volume_xyz
+          ROOTDIRECTORY: /mount/mnt #not use with access_point
   AWS_REGION: us-east-1
   AWS_ACCOUNT: 1111111
   AWS_ROLE: role-name
 `;
+
+APP_MOUNTPOINTS:
+      - uploads:/var/www/html/public/uploads
+    EFS_CONFIG:
+     -  FILESYSTEM_ID: EFS_ID
+        ACCESS_POINT_ID: EFS_AP_ID
+        VOLUME_NAME: uploads
 
 
 async function initSample() {
