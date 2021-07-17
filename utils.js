@@ -34,14 +34,6 @@ development:
   AWS_ROLE: role-name
 `;
 
-APP_MOUNTPOINTS:
-      - uploads:/var/www/html/public/uploads
-    EFS_CONFIG:
-     -  FILESYSTEM_ID: EFS_ID
-        ACCESS_POINT_ID: EFS_AP_ID
-        VOLUME_NAME: uploads
-
-
 async function initSample() {
       await fs.writeFileSync('oni.sample.yaml',oni );
       console.log('Please rename oni.sample.yaml to oni.yaml');
