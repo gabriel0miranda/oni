@@ -3,7 +3,8 @@
 ## Install
 
 ```sh
-$ npm i ./dist/oni -g
+$ npm i 
+$ pkg .
 ```
 
 ## Usage
