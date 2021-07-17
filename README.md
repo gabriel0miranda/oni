@@ -3,8 +3,13 @@
 ## Install
 
 ```sh
+<<<<<<< HEAD
 $ npm install
 $ npm install -g pkg
+=======
+$ npm install -g pkg
+$ npm i 
+>>>>>>> 58e99478ccb09dd1489c2c0b22e250ae2f991372
 $ pkg .
 ```
 
