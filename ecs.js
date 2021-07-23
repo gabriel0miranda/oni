@@ -63,8 +63,8 @@ async function GetLogFailedContainerDeploy(credencias, task) {
     const logs = await cloudwatch.getLogEvents({
         logGroupName: `/ecs/${CLUSTER_NAME}/${APP_NAME}`,
         logStreamName: `${APP_NAME}/${APP_NAME}/${task}`,
-        startFromHead: true,
-        limit: 1000
+        startFromHead: false,
+        limit: 200
     }).promise();
 
     console.log('Log fom stopped container');
@@ -248,9 +248,10 @@ async function stopDeployment(deploymentId, credencias) {
         const ecs = new aws.ECS();
         await sleep(10000);
         const taskDetails = await ecs.describeTasks({ cluster: CLUSTER_NAME, tasks: [`arn:aws:ecs:${APP_REGION}:${APP_ACCOUNT}:task/${CLUSTER_NAME}/${lastTask}`] }).promise();
+        if (taskDetails.$response.data.tasks[0].containers)
         console.log('Stopped Reason: ', taskDetails.$response.data.tasks[0].containers[0].reason)
         
-        await GetLogFailedContainerDeploy(lastTask);
+        await GetLogFailedContainerDeploy(credencias,lastTask);
 
         process.exit(1);
 
@@ -282,11 +283,11 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
                                 ContainerPort: appPort
                             }
                             ,
-                            // CapacityProviderStrategy: [{
-                            //     CapacityProvider: `${CLUSTER_NAME}-capacity-provider`,
-                            //     Base: 0,
-                            //     Weight: 1
-                            // }]
+                            CapacityProviderStrategy: [{
+                                CapacityProvider: `${CLUSTER_NAME}-capacity-provider`,
+                                Base: 0,
+                                Weight: 1
+                            }]
                         }
                     }
                 }
@@ -341,7 +342,7 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
             await PrintEventsECS(credencias);
             statusDeploy = await codeDeploy.getDeployment({ deploymentId: deploy.deploymentId }).promise();
 
-            if (timeOut > 100 && (statusDeploy.deploymentInfo.status === 'InProgress' || statusDeploy.deploymentInfo.status === 'Created'))
+            if (timeOut > 600 && (statusDeploy.deploymentInfo.status === 'InProgress' || statusDeploy.deploymentInfo.status === 'Created'))
                 await stopDeployment(deploy.deploymentId, credencias)
 
 
@@ -359,8 +360,6 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
         process.exit(1);
     }
 
-
-
 }
 
 
@@ -372,6 +371,19 @@ function GetSortOrder(prop) {
             return -1;
         }
         return 0;
+    }
+}
+
+async function GetLastTask(events) {
+    let count = 0;
+    for (let i =  events.length -1; i>=0; i--) {
+        if (events[i].message.includes('has started 1 tasks: (task') && count === 0) {
+            count = 1;
+        } else if (events[i].message.includes('has started 1 tasks: (task') && count === 1) {
+            lastTask = events[i].message.split('(')[2].replace('task ', '').replace(').', '');
+            console.log('lastTask ==> ',lastTask);
+            break;
+        }
     }
 }
 
@@ -400,8 +412,9 @@ async function PrintEventsECS(credencias) {
                 console.log('\x1b[35m', `${events[0].createdAt} => ${events[0].message}`)
 
 
-            if (events[0].message.includes('has started 1 tasks: (task'))
-                lastTask = events[0].message.split('(')[2].replace('task ', '').replace(').', '');
+            // if (events[0].message.includes('has started 1 tasks: (task'))
+            //     lastTask = events[0].message.split('(')[2].replace('task ', '').replace(').', '');
+            await GetLastTask(events);
 
             lastIdMessage = events[0].id;
         } {
@@ -410,8 +423,9 @@ async function PrintEventsECS(credencias) {
             if (lastIdMessage != events[eventsSize].id)
                 console.log('\x1b[35m', `${events[eventsSize].createdAt} => ${events[eventsSize].message}`)
 
-            if (events[eventsSize].message.includes('has started 1 tasks: (task'))
-                lastTask = events[eventsSize].message.split('(')[2].replace('task ', '').replace(').', '');
+            // if (events[eventsSize].message.includes('has started 1 tasks: (task'))
+            //     lastTask = events[eventsSize].message.split('(')[2].replace('task ', '').replace(').', '');
+            await GetLastTask(events);
 
             lastIdMessage = events[eventsSize].id;
         }
