@@ -14,6 +14,8 @@ let TPM_VARIABLES;
 let TPM_SECRETS;
 let APP_COMMAND;
 let CLUSTER_NAME;
+let ECS_TYPE;
+let ECS_NETWORK_MODE;
 let TMP_MOUNTPOINTS;
 let TMP_EFS_CONFIG;
 let AUTH_TYPE;
@@ -40,6 +42,8 @@ async function initEnvs(app) {
     TPM_SECRETS = APP.APP_SECRETS;
     APP_COMMAND = APP.APP_COMMAND || [];
     CLUSTER_NAME = APP.CLUSTER_NAME;
+    ECS_TYPE = APP.ECS_TYPE;
+    ECS_NETWORK_MODE = APP.ECS_NETWORK_MODE;
     TMP_MOUNTPOINTS = APP.APP_MOUNTPOINTS;
     TMP_EFS_CONFIG = APP.EFS_CONFIG;
     TMP_CONSTRAINTS = APP.CONSTRAINTS;
@@ -154,6 +158,7 @@ async function DeployECS(app, tag, loadbalance) {
             secrets: APP_SECRETS,
             portMappings: APP_PORTS,
             mountPoints: APP_MOUNTPOINTS,
+            networkMode: ECS_NETWORK_MODE,
             logConfiguration: {
                 logDriver: "awslogs",
                 options: {
@@ -266,6 +271,30 @@ async function stopDeployment(deploymentId, credencias) {
 
 async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, credencias) {
 
+    if (ECS_TYPE == "FARGATE" ) {
+        var RESOURCE_PROPERTIES = `{
+                            TaskDefinition: taskARN,
+                            LoadBalancerInfo: {
+                                ContainerName: APP_NAME,
+                                ContainerPort: appPort
+                            }
+                        }`
+    } else {
+        var RESOURCE_PROPERTIES = `{
+                            TaskDefinition: taskARN,
+                            LoadBalancerInfo: {
+                                ContainerName: APP_NAME,
+                                ContainerPort: appPort
+                            }
+                        },
+                            CapacityProviderStrategy: [{
+                                CapacityProvider: ${CLUSTER_NAME}-capacity-provider,
+                                Base: 0,
+                                Weight: 1
+                            }]
+                        }`
+    }
+
     try {
         //await initEnvs(appName);
 
@@ -275,20 +304,7 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
                 {
                     TargetService: {
                         Type: 'AWS::ECS::Service',
-                        Properties: {
-                            TaskDefinition: taskARN
-                            ,
-                            LoadBalancerInfo: {
-                                ContainerName: APP_NAME,
-                                ContainerPort: appPort
-                            }
-                            ,
-                            CapacityProviderStrategy: [{
-                                CapacityProvider: `${CLUSTER_NAME}-capacity-provider`,
-                                Base: 0,
-                                Weight: 1
-                            }]
-                        }
+                        Properties: `${RESOURCE_PROPERTIES}`
                     }
                 }
             ]
