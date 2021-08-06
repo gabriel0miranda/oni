@@ -19,6 +19,7 @@ let TMP_EFS_CONFIG;
 let AUTH_TYPE;
 let lastTask = '';
 let lastIdMessage = '';
+let NETWORK_MODE;
 
 async function sleep(ms) {
     return new Promise((resolve) => {
@@ -44,6 +45,7 @@ async function initEnvs(app) {
     TMP_EFS_CONFIG = APP.EFS_CONFIG;
     TMP_CONSTRAINTS = APP.CONSTRAINTS;
     TASK_ARN = APP.TASK_ARN;
+    NETWORK_MODE = APP.NETWORK_MODE;
     AUTH_TYPE = 'INFRA';
 }
 
@@ -73,7 +75,7 @@ async function GetLogFailedContainerDeploy(credencias, task) {
     }
 }
 
-async function DeployECS(app, tag, loadbalance) {
+async function DeployECS(app, tag, loadbalance,isFargate) {
 
 
     try {
@@ -153,7 +155,7 @@ async function DeployECS(app, tag, loadbalance) {
             environment: APP_VARIABLES,
             secrets: APP_SECRETS,
             portMappings: APP_PORTS,
-            mountPoints: APP_MOUNTPOINTS,
+            mountPoints: APP_MOUNTPOINTS,            
             logConfiguration: {
                 logDriver: "awslogs",
                 options: {
@@ -175,6 +177,7 @@ async function DeployECS(app, tag, loadbalance) {
             executionRoleArn: `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}`,
             placementConstraints: APP_CONSTRAINTS,
             volumes: APP_VOLUMES,
+            networkMode: NETWORK_MODE,
             taskRoleArn: TASK_ARN ? `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}` : ''
         }).promise();
 
@@ -184,7 +187,7 @@ async function DeployECS(app, tag, loadbalance) {
         if (loadbalance) {
             await UpdateService(taskARN, app, cred)
         } else {
-            await CodeDeploy(taskARN, app, TMP_PORTS[0], cred)
+            await CodeDeploy(taskARN, app, TMP_PORTS[0], cred,isFargate)
         }
     } catch (error) {
         console.error('\x1b[31m', error);
@@ -264,7 +267,7 @@ async function stopDeployment(deploymentId, credencias) {
 
 }
 
-async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, credencias) {
+async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, credencias, isFargate) {
 
     try {
         //await initEnvs(appName);
@@ -293,6 +296,9 @@ async function CodeDeploy(taskARN, appName = 'APP_DEFAULT', appPort = 8080, cred
                 }
             ]
         }
+
+        if (isFargate)
+            delete contentDefinition.Resources[0].TargetService.Properties.CapacityProviderStrategy;
 
 
         //const cred = await AssumeRole(AUTH_TYPE);
@@ -381,7 +387,6 @@ async function GetLastTask(events) {
             count = 1;
         } else if (events[i].message.includes('has started 1 tasks: (task') && count === 1) {
             lastTask = events[i].message.split('(')[2].replace('task ', '').replace(').', '');
-            console.log('lastTask ==> ',lastTask);
             break;
         }
     }

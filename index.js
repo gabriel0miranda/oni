@@ -29,6 +29,13 @@ async function init() {
                         required: true,
                         description: 'Image tag',
                     })
+                    .option('fargate', {
+                        alias: 'f',
+                        type: 'boolean',
+                        required: false,
+                        default: false,
+                        description: 'ECS deploy type Fargate',
+                    })                    
                     .example('oni ecs-deploy -n MY_APP -i nginx:latest -w')
                     .strictOptions()
             }
@@ -76,7 +83,7 @@ async function init() {
                 .strictCommands()
         })
         .command('init', 'create oni.yaml sample')
-        .version('version', 'Show Version', 'Version 0.0.5')
+        .version('version', 'Show Version', 'Version 0.0.7')
         .alias('version', 'v')
         .demandCommand(1, 'You need at least one command')
         .help()
@@ -89,7 +96,7 @@ async function init() {
         if (await fs.existsSync('./oni.yaml')) {
             switch (command[0]) {
                 case 'ecs-deploy':
-                    await DeployECS(argv.name, argv.tag, argv.w)
+                    await DeployECS(argv.name, argv.tag, argv.w, argv.f)
                     break;
                 case 'docker':
                     switch (command[1]) {
