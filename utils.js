@@ -32,6 +32,10 @@ development:
         ACCESS_POINT_ID: fsid-xxxxxxxxx
         VOLUME_NAME: volume_xyz
         ROOTDIRECTORY: /mount/mnt #not use with access_point
+     APP_SRC: ./build
+     APP_S3_BUCKET: site-devXXX
+     CF_DISTRIBUTION_ID: XXXXXXXXXXXXXXX        
+        
 `;
 
 async function initSample() {

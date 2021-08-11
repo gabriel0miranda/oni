@@ -3,6 +3,7 @@ const fs = require('fs');
 const { DockerBuild, DockerPush } = require('./docker');
 const { DeployECS } = require('./ecs');
 const {initSample} = require('./utils');
+const {DeployS3} = require('./s3');
 
 async function init() {
 
@@ -41,6 +42,17 @@ async function init() {
             }
 
         )
+        .command('deploy-static','command for deploy static content in S3', function (yargs, helpOrVersionSetgs){
+            return yargs.option('name', {
+                alias: 'n',
+                type: 'string',
+                required: true,
+                description: 'Application name defined in oni.yml',
+                default: 'APP_DEFAULT'
+            })
+            .example('oni deploy-static -n MY_APP')
+            .strictOptions()            
+        })
         .command('docker <command>', 'docker commands', function (yargs, helpOrVersionSetgs) {
             return yargs.command('build', 'Build docker image', function (yargs, helpOrVersionSetgs) {
                 yargs.option('dockerfile', {
@@ -83,7 +95,7 @@ async function init() {
                 .strictCommands()
         })
         .command('init', 'create oni.yaml sample')
-        .version('version', 'Show Version', 'Version 0.0.7')
+        .version('version', 'Show Version', 'Version 0.0.8')
         .alias('version', 'v')
         .demandCommand(1, 'You need at least one command')
         .help()
@@ -95,6 +107,9 @@ async function init() {
 
         if (await fs.existsSync('./oni.yaml')) {
             switch (command[0]) {
+                case 'deploy-static':
+                    await DeployS3(argv.name);
+                    break;
                 case 'ecs-deploy':
                     await DeployECS(argv.name, argv.tag, argv.w, argv.f)
                     break;

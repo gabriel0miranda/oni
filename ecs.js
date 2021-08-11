@@ -20,6 +20,9 @@ let AUTH_TYPE;
 let lastTask = '';
 let lastIdMessage = '';
 let NETWORK_MODE;
+let APP_CPU;
+let TMP_CONSTRAINTS;
+let TASK_ARN;
 
 async function sleep(ms) {
     return new Promise((resolve) => {
@@ -33,6 +36,7 @@ async function initEnvs(app) {
     APP_IMAGE = APP.APP_IMAGE;
     APP_NAME = APP.APP_NAME;
     APP_MEMORY = APP.APP_MEMORY;
+    APP_CPU    = APP.APP_CPU
     APP_MEMORY_RESERVATION = APP.APP_MEMORY_RESERVATION;
     TMP_PORTS = APP.APP_PORTS;
     APP_REGION = APP.APP_REGION;
@@ -166,6 +170,12 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
             },
         }
 
+
+        if (isFargate) {
+            delete containerDefinition.memory;
+            delete containerDefinition.memoryReservation;
+        }
+
         console.log('ContainerDefinition: ', containerDefinition);
 
 
@@ -178,7 +188,10 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
             placementConstraints: APP_CONSTRAINTS,
             volumes: APP_VOLUMES,
             networkMode: NETWORK_MODE,
-            taskRoleArn: TASK_ARN ? `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}` : ''
+            memory: isFargate ? APP_MEMORY: '',
+            cpu: isFargate ? APP_CPU: '' ,
+            taskRoleArn: TASK_ARN ? `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}` : '',
+            requiresCompatibilities: isFargate ? ['FARGATE'] : []
         }).promise();
 
         const taskARN = task.taskDefinition.taskDefinitionArn;
