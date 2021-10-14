@@ -168,6 +168,18 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
                     "awslogs-stream-prefix": `${APP_NAME}`
                 }
             },
+            ulimits: [
+                {
+                    "softLimit": 65536,
+                    "hardLimit": 65536,
+                    "name": "nofile"
+                },
+                {
+                    "softLimit": 65536,
+                    "hardLimit": 65536,
+                    "name": "nproc"
+                },
+            ],
         }
 
 
