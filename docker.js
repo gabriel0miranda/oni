@@ -14,7 +14,9 @@ async function DockerBuild(tag, dockerFile = './Dockerfile', app = 'APP_DEFAULT'
         
         console.log('\x1b[36m',`Building image ${APP_IMAGE}:${tag}`)
 
-        let output = await docker.buildImage({ context: process.cwd(), src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}` });
+        const authEcr = await DockerLoginECR();
+
+        let output = await docker.buildImage({ context: process.cwd(), src: [dockerFile, '.'] }, { t: `${APP_IMAGE}:${tag}`, authconfig: authEcr });
          await new Promise((resolve, reject) => {
             docker.modem.followProgress(output, (err, res) => {
                 if (err) {                    
@@ -101,8 +103,8 @@ async function DockerLoginECR() {
 
         let [user, pass] = Buffer.from(authResponse.authorizationData[0].authorizationToken, 'base64').toString().split(':');
 
-        console.log('user', user);
-        console.log('pass', pass);
+        //console.log('user', user);
+        //console.log('pass', pass);
 
         return {
             username: user,

@@ -44,6 +44,7 @@ async function initEnvs(app) {
     TPM_VARIABLES = APP.APP_VARIABLES;
     TPM_SECRETS = APP.APP_SECRETS;
     APP_COMMAND = APP.APP_COMMAND || [];
+    TMP_ULIMITS = APP.APP_ULIMITS;
     CLUSTER_NAME = APP.CLUSTER_NAME;
     TMP_MOUNTPOINTS = APP.APP_MOUNTPOINTS;
     TMP_EFS_CONFIG = APP.EFS_CONFIG;
@@ -73,7 +74,7 @@ async function GetLogFailedContainerDeploy(credencias, task) {
         limit: 200
     }).promise();
 
-    console.log('Log fom stopped container');
+    console.log('Log from stopped container');
     for (const log of logs.$response.data.events) {
         console.log(log.message);
     }
@@ -103,6 +104,7 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
         let APP_VOLUMES = [];
         let APP_CONSTRAINTS = [];
         let APP_CMDS = [];
+        let APP_ULIMITS = [];
 
 
         for (var idx in TPM_VARIABLES) {
@@ -147,6 +149,11 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
                 APP_CMDS.push(cmd.toString());
             }
 
+        if(TMP_ULIMITS)
+            for (const u of TMP_ULIMITS) {
+                APP_ULIMITS.push({hardLimit: u.SOFTLIMIT, softLimit: u.HARDLIMIT,name: u.NAME});
+            }
+
 
 
         let containerDefinition = {
@@ -159,7 +166,8 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
             environment: APP_VARIABLES,
             secrets: APP_SECRETS,
             portMappings: APP_PORTS,
-            mountPoints: APP_MOUNTPOINTS,            
+            mountPoints: APP_MOUNTPOINTS,  
+            ulimits: APP_ULIMITS,          
             logConfiguration: {
                 logDriver: "awslogs",
                 options: {
@@ -181,6 +189,7 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
 
         const ecs = new aws.ECS();
 
+
         const task = await ecs.registerTaskDefinition({
             containerDefinitions: [containerDefinition],
             family: `${CLUSTER_NAME}-${APP_NAME}`,
@@ -188,8 +197,8 @@ async function DeployECS(app, tag, loadbalance,isFargate) {
             placementConstraints: APP_CONSTRAINTS,
             volumes: APP_VOLUMES,
             networkMode: NETWORK_MODE,
-            memory: isFargate ? APP_MEMORY: '',
-            cpu: isFargate ? APP_CPU: '' ,
+            memory: isFargate ? APP_MEMORY: null,
+            cpu: isFargate ? APP_CPU: null ,
             taskRoleArn: TASK_ARN ? `arn:aws:iam::${APP_ACCOUNT}:role/ecs-task-${CLUSTER_NAME}-${APP_REGION}` : '',
             requiresCompatibilities: isFargate ? ['FARGATE'] : []
         }).promise();

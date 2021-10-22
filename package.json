@@ -12,6 +12,7 @@
     "aws-sdk": "^2.922.0",
     "cli-docs-generator": "^1.0.7",
     "dockerode": "^3.3.0",
+    "mime-types": "^2.1.32",
     "s3-sync-client": "^1.5.1",
     "yargs": "^17.0.1",
     "yenv": "^3.0.0"

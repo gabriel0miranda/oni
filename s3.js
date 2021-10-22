@@ -1,5 +1,6 @@
 const aws = require('aws-sdk');
 const yenv = require('yenv')
+const mime = require('mime-types');
 const S3SyncClient = require('s3-sync-client');
 const { AssumeRole } = require('./auth');
 const fs = require('fs');
@@ -30,7 +31,11 @@ async function UploadS3(app) {
             sessionToken: cred.sessionToken
         }    
     });
-    await sync.bucketWithLocal(APP_SRC, APP_S3_BUCKET,{delete: true});
+    await sync.bucketWithLocal(APP_SRC, APP_S3_BUCKET,{delete: true,    commandInput: {
+        ACL: 'public-read', ContentType: (syncCommandInput) => (
+            mime.lookup(syncCommandInput.Key) || 'text/html'
+        ) 
+    }});
 }
 
 async function InvalidateCloudFront(app) {

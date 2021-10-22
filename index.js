@@ -95,7 +95,7 @@ async function init() {
                 .strictCommands()
         })
         .command('init', 'create oni.yaml sample')
-        .version('version', 'Show Version', 'Version 0.0.8')
+        .version('version', 'Show Version', 'Version 0.0.9')
         .alias('version', 'v')
         .demandCommand(1, 'You need at least one command')
         .help()
